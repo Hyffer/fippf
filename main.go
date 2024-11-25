@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"github.com/miekg/dns"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"log/slog"
@@ -59,6 +60,17 @@ func main() {
 	}
 	defer tunIf.Close()
 
+	pool := NewIPPool(tunIf.cidr, tunIf.ip, tunIf.cidr6, tunIf.ip6)
+	dnsSrv := &dns.Server{
+		Addr:    ":55",
+		Net:     "udp",
+		Handler: pool,
+		UDPSize: 65535,
+	}
+	defer func(dnsSrv *dns.Server) {
+		_ = dnsSrv.Shutdown()
+	}(dnsSrv)
+
 	slog.Info("FIPPF started")
 
 	// receive packets
@@ -85,6 +97,13 @@ func main() {
 					slog.Debug("IPv6 Packet:", "from", net.IP(buf[0][8:24]), "to", net.IP(buf[0][24:40]))
 				}
 			}
+		}
+	}()
+
+	go func() {
+		err := dnsSrv.ListenAndServe()
+		if err != nil {
+			slog.Error("Failed to start DNS dnsSrv:", "err", err)
 		}
 	}()
 
