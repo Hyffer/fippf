@@ -8,11 +8,13 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	github.com/vishvananda/netlink v1.3.0
-	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
+	golang.org/x/sys v0.22.0
+	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259
 )
 
 require (
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/google/btree v1.0.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -30,10 +32,9 @@ require (
 	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.22.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.22.0 // indirect
-	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"github.com/miekg/dns"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -51,7 +50,7 @@ func main() {
 	}
 
 	tunIf, err := NewTunIf(
-		viper.GetString("if_name"), viper.GetInt("mtu"),
+		viper.GetString("if_name"), viper.GetUint32("mtu"),
 		viper.GetString("ip_range"), viper.GetString("ip6_range"),
 	)
 	if err != nil {
@@ -59,6 +58,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer tunIf.Close()
+
+	tunIf.SetConnHandler(func(t uint32, conn net.Conn) {
+		slog.Debug("receive packet", "from", conn.RemoteAddr(), "to", conn.LocalAddr())
+	})
 
 	pool := NewIPPool(tunIf.cidr, tunIf.ip, tunIf.cidr6, tunIf.ip6)
 	dnsSrv := &dns.Server{
@@ -72,33 +75,6 @@ func main() {
 	}(dnsSrv)
 
 	slog.Info("FIPPF started")
-
-	// receive packets
-	go func() {
-		buf := make([][]byte, 1)
-		buf[0] = make([]byte, tunIf.mtu)
-		size := make([]int, 1)
-		for {
-			_, err := tunIf.Read(buf, size, 0)
-			if err != nil {
-				switch {
-				case errors.Is(err, os.ErrClosed):
-					break
-				default:
-					slog.Error("Failed to read packet from TUN interface:", "err", err)
-				}
-			} else {
-				// ipv4
-				if buf[0][0]>>4 == 4 {
-					slog.Debug("IPv4 Packet:", "from", net.IP(buf[0][12:16]), "to", net.IP(buf[0][16:20]))
-				}
-				// ipv6
-				if buf[0][0]>>4 == 6 {
-					slog.Debug("IPv6 Packet:", "from", net.IP(buf[0][8:24]), "to", net.IP(buf[0][24:40]))
-				}
-			}
-		}
-	}()
 
 	go func() {
 		err := dnsSrv.ListenAndServe()
