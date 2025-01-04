@@ -4,10 +4,13 @@ import (
 	"github.com/miekg/dns"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"golang.org/x/net/proxy"
+	"io"
 	"log/slog"
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 )
 
@@ -26,6 +29,8 @@ func main() {
 
 	viper.SetDefault("dns_listen", "127.0.0.52")
 	viper.SetDefault("dns_port", 53)
+
+	viper.SetDefault("proxy", "127.0.0.1:8001")
 
 	viper.AddConfigPath(pflag.Lookup("config_dir").Value.String())
 	viper.SetConfigName("config")
@@ -49,6 +54,7 @@ func main() {
 		slog.Warn("Unknown log level, defaulting to info")
 	}
 
+	// Create TUN interface
 	tunIf, err := NewTunIf(
 		viper.GetString("if_name"), viper.GetUint32("mtu"),
 		viper.GetString("ip_range"), viper.GetString("ip6_range"),
@@ -59,13 +65,10 @@ func main() {
 	}
 	defer tunIf.Close()
 
-	tunIf.SetConnHandler(func(t uint32, conn net.Conn) {
-		slog.Debug("receive packet", "from", conn.RemoteAddr(), "to", conn.LocalAddr())
-	})
-
+	// Fake-IP DNS server
 	pool := NewIPPool(tunIf.cidr, tunIf.ip, tunIf.cidr6, tunIf.ip6)
 	dnsSrv := &dns.Server{
-		Addr:    ":55",
+		Addr:    viper.GetString("dns_listen") + ":" + strconv.Itoa(viper.GetInt("dns_port")),
 		Net:     "udp",
 		Handler: pool,
 		UDPSize: 65535,
@@ -74,14 +77,66 @@ func main() {
 		_ = dnsSrv.Shutdown()
 	}(dnsSrv)
 
-	slog.Info("FIPPF started")
-
 	go func() {
 		err := dnsSrv.ListenAndServe()
 		if err != nil {
-			slog.Error("Failed to start DNS dnsSrv:", "err", err)
+			slog.Error("Failed to start DNS server:", "err", err)
+			os.Exit(1)
 		}
 	}()
+
+	// Proxy backend
+	proxyBE := viper.GetString("proxy")
+	slog.Info("Using proxy backend", "socks5", proxyBE)
+	tcpDialer, err := proxy.SOCKS5("tcp", proxyBE, nil, proxy.Direct)
+	if err != nil {
+		slog.Error("Failed to construct proxy dialer:", "err", err)
+		os.Exit(1)
+	}
+
+	// main handler
+	tunIf.SetConnHandler(func(t uint32, conn net.Conn) {
+		switch t {
+		case tcpProtocolNumber:
+			slog.Debug("TCP packet", "from", conn.RemoteAddr(), "to", conn.LocalAddr())
+
+			tcpAddr, err := net.ResolveTCPAddr("tcp", conn.LocalAddr().String())
+			if err != nil {
+				slog.Error("Failed to resolve TCP address:", "address", conn.LocalAddr(), "err", err)
+				_ = conn.Close()
+				return
+			}
+
+			fqdn, err := pool.RevResolve(tcpAddr.IP)
+			if err != nil {
+				slog.Error("Failed to resolve FQDN:", "err", err)
+				_ = conn.Close()
+				return
+			}
+
+			proxyConn, err := tcpDialer.Dial("tcp", fqdn+":"+strconv.Itoa(tcpAddr.Port))
+			if err != nil {
+				slog.Error("Failed to dial:", "err", err)
+				_ = conn.Close()
+				return
+			}
+
+			relay := func(src net.Conn, dst net.Conn) {
+				_, _ = io.Copy(dst, src)
+				_ = dst.Close()
+				_ = src.Close()
+			}
+			go relay(conn, proxyConn)
+			go relay(proxyConn, conn)
+
+		case udpProtocolNumber:
+			slog.Warn("Not implemented yet")
+		default:
+			slog.Error("Unexpected error: unknown protocol number:", "t", t)
+		}
+	})
+
+	slog.Info("FIPPF started")
 
 	termChan := make(chan os.Signal)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)

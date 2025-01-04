@@ -8,9 +8,11 @@ import (
 	"github.com/miekg/dns"
 	"log/slog"
 	"net"
+	"sync"
 )
 
 type IPPool struct {
+	sync.Mutex
 	cidr    net.IPNet
 	cidr6   net.IPNet
 	size    uint32
@@ -116,6 +118,8 @@ func (p *IPPool) Alloc(fqdn string) uint32 {
 }
 
 func (p *IPPool) Resolve(fqdn string) (net.IP, net.IP) {
+	p.Lock()
+	defer p.Unlock()
 	if idx, ok := p.n2i[fqdn]; ok {
 		return p.idx2ip(idx)
 	} else {
@@ -128,7 +132,11 @@ func (p *IPPool) Resolve(fqdn string) (net.IP, net.IP) {
 func (p *IPPool) RevResolve(ip net.IP) (string, error) {
 	if p.Contains(ip) {
 		idx := p.ip2idx(ip)
-		return p.i2n[idx], nil
+		if fqdn, ok := p.i2n[idx]; ok {
+			slog.Debug("[FakeDNS] rev-resolve:", "fake-ip", ip, "fqdn", fqdn)
+			return fqdn, nil
+		}
+		return "", fmt.Errorf("no matching fqdn of requested IP")
 	}
 	return "", fmt.Errorf("IP not in pool")
 }

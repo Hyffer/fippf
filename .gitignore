@@ -1,2 +1,4 @@
 .idea
+config.*
+curl
 go_build_fippf
