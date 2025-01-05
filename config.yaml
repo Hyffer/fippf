@@ -1,1 +1,12 @@
-log_level: debug
+# Values listed below are their default values
+log_level: info               # One of debug, info, warn, error
+
+if_name: tun0                 # Interface name
+mtu: 1500
+ip_range: "198.18.0.1/16"     # IP address and subnet
+ip6_range: "fc00:fdfe::1/96"  # IPv6 address and subnet
+
+dns_listen: "127.0.0.52"
+dns_port: 53
+
+proxy: "127.0.0.1:8001"       # Socks5 proxy (currently only socks5 with no authentication is supported)
