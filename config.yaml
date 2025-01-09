@@ -10,3 +10,8 @@ dns_listen: "127.0.0.52"
 dns_port: 53
 
 proxy: "127.0.0.1:8001"       # Socks5 proxy (currently only socks5 with no authentication is supported)
+
+# UDP and TCP inactivity check interval in seconds, 0 to disable
+# Note that UDP does not have a termination handshake, so setting `udp_timeout` to 0 will cause resource leak
+udp_timeout: 30
+tcp_timeout: 600

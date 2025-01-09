@@ -18,6 +18,7 @@ import (
 	"gvisor.dev/gvisor/pkg/waiter"
 	"log/slog"
 	"net"
+	"net/netip"
 )
 
 const (
@@ -34,6 +35,11 @@ type TunIf struct {
 	cidr  net.IPNet
 	ip6   net.IP
 	cidr6 net.IPNet
+}
+
+type ConnAcceptor struct {
+	accept func() (net.Conn, error)
+	deny   func()
 }
 
 func (tunIf *TunIf) atexit(exit func()) {
@@ -160,16 +166,64 @@ func (tunIf *TunIf) setupTunIf(ip net.IP, cidr *net.IPNet, ip6 net.IP, cidr6 *ne
 	return nil
 }
 
-func (tunIf *TunIf) SetConnHandler(handler func(t uint32, conn net.Conn)) {
-	tcpHandler := tcp.NewForwarder(tunIf.stack, 0, 4096, func(request *tcp.ForwarderRequest) {
-		var wq waiter.Queue
-		ep, ipErr := request.CreateEndpoint(&wq)
-		if ipErr != nil {
-			slog.Error("Error creating endpoint for TCP forwarder:", "err", ipErr, "request", request)
-		}
-		tcpConn := gonet.NewTCPConn(&wq, ep)
+func (tunIf *TunIf) SetConnHandler(handler func(t uint32, acceptor ConnAcceptor, dst netip.AddrPort)) {
+	// both TCP and UDP are treated as "connection"
 
-		handler(tcpProtocolNumber, tcpConn)
+	unifiedPreHandler := func(
+		t uint32,
+		acceptor ConnAcceptor,
+		request interface {
+			ID() stack.TransportEndpointID
+		},
+	) {
+		// there are some common parts of TCP and UDP handlers, which will be processed here
+		dst := request.ID().LocalAddress
+		dstAddr, ok := netip.AddrFromSlice(dst.AsSlice())
+		if !ok {
+			slog.Error("Unexpected error converting tcpip.Address %s to netip.Addr:", "tcpip.Address", dst)
+			return
+		}
+		dstSockAddr := netip.AddrPortFrom(dstAddr, request.ID().LocalPort)
+
+		handler(t, acceptor, dstSockAddr)
+	}
+
+	tcpHandler := tcp.NewForwarder(tunIf.stack, 0, 4096, func(request *tcp.ForwarderRequest) {
+		acceptor := ConnAcceptor{
+			accept: func() (net.Conn, error) {
+				var wq waiter.Queue
+				ep, ipErr := request.CreateEndpoint(&wq)
+				if ipErr != nil {
+					return nil, fmt.Errorf("error creating endpoint for TCP forwarder: %s", ipErr)
+				}
+				tcpConn := gonet.NewTCPConn(&wq, ep)
+				return tcpConn, nil
+			},
+			deny: func() {
+				request.Complete(true)
+			},
+		}
+		unifiedPreHandler(tcpProtocolNumber, acceptor, request)
 	})
+
+	udpHandler := udp.NewForwarder(tunIf.stack, func(request *udp.ForwarderRequest) {
+		acceptor := ConnAcceptor{
+			accept: func() (net.Conn, error) {
+				var wq waiter.Queue
+				ep, ipErr := request.CreateEndpoint(&wq)
+				if ipErr != nil {
+					return nil, fmt.Errorf("error creating endpoint for UDP forwarder: %s", ipErr)
+				}
+				udpConn := gonet.NewUDPConn(tunIf.stack, &wq, ep)
+				return udpConn, nil
+			},
+			deny: func() {
+				return
+			},
+		}
+		unifiedPreHandler(udpProtocolNumber, acceptor, request)
+	})
+
 	tunIf.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, tcpHandler.HandlePacket)
+	tunIf.stack.SetTransportProtocolHandler(udp.ProtocolNumber, udpHandler.HandlePacket)
 }

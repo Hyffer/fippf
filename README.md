@@ -59,6 +59,11 @@ The proxy program cannot use system DNS resolver, otherwise it will cause a loop
 [rofl0r/proxychains-ng](https://github.com/rofl0r/proxychains-ng)
 works as a dynamic library interceptor. FIPPF works as a kind of network gateway.
 
+[Dante](https://www.inet.no/dante/):
+ubuntu [dante-client package](https://launchpad.net/ubuntu/jammy/+package/dante-client) provides a "socksify" tool.
+Like proxychains-ng, it is also an LD_PRELOAD based program.
+socksify can proxy both TCP and UDP traffic, whereas proxychains-ng only supports TCP.
+
 [xjasonlyu/tun2socks](https://github.com/xjasonlyu/tun2socks)
 routes all traffic to tun interface. FIPPF leverages fake IP DNS and handles fake IP subnet only.
 

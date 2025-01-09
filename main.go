@@ -1,17 +1,20 @@
 package main
 
 import (
+	"errors"
 	"github.com/miekg/dns"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"golang.org/x/net/proxy"
+	"github.com/txthinking/socks5"
 	"io"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -31,6 +34,9 @@ func main() {
 	viper.SetDefault("dns_port", 53)
 
 	viper.SetDefault("proxy", "127.0.0.1:8001")
+
+	viper.SetDefault("udp_timeout", 30)
+	viper.SetDefault("tcp_timeout", 600)
 
 	viper.AddConfigPath(pflag.Lookup("config_dir").Value.String())
 	viper.SetConfigName("config")
@@ -88,52 +94,59 @@ func main() {
 	// Proxy backend
 	proxyBE := viper.GetString("proxy")
 	slog.Info("Using proxy backend", "socks5", proxyBE)
-	tcpDialer, err := proxy.SOCKS5("tcp", proxyBE, nil, proxy.Direct)
+	// socks5 in go library does not support UDP
+	// but this one does not support dial timeout todo
+	proxyDialer, err := socks5.NewClient(proxyBE, "", "", 0, 0)
 	if err != nil {
 		slog.Error("Failed to construct proxy dialer:", "err", err)
 		os.Exit(1)
 	}
 
+	tcpTimeout := viper.GetInt("tcp_timeout")
+	udpTimeout := viper.GetInt("udp_timeout")
+	if udpTimeout <= 0 {
+		slog.Warn("UDP timeout is disabled, this may cause resource exhaustion")
+	}
+
 	// main handler
-	tunIf.SetConnHandler(func(t uint32, conn net.Conn) {
+	tunIf.SetConnHandler(func(t uint32, acceptor ConnAcceptor, dst netip.AddrPort) {
+		fqdn, err := pool.RevResolve(dst.Addr().AsSlice())
+		if err != nil {
+			slog.Error("Failed to resolve FQDN:", "err", err, "ip", dst.Addr())
+			acceptor.deny()
+			return
+		}
+		realDst := net.JoinHostPort(fqdn, strconv.Itoa(int(dst.Port())))
+
+		conn, err := acceptor.accept()
+		if err != nil {
+			slog.Error("Failed to establish connection from client:", "err", err)
+			return
+		}
+
+		slog.Debug("Accepted", "from", conn.RemoteAddr(), "to", conn.LocalAddr(), "fqdn", fqdn)
+
+		var timeout int
+		var network string
 		switch t {
 		case tcpProtocolNumber:
-			slog.Debug("TCP packet", "from", conn.RemoteAddr(), "to", conn.LocalAddr())
-
-			tcpAddr, err := net.ResolveTCPAddr("tcp", conn.LocalAddr().String())
-			if err != nil {
-				slog.Error("Failed to resolve TCP address:", "address", conn.LocalAddr(), "err", err)
-				_ = conn.Close()
-				return
-			}
-
-			fqdn, err := pool.RevResolve(tcpAddr.IP)
-			if err != nil {
-				slog.Error("Failed to resolve FQDN:", "err", err)
-				_ = conn.Close()
-				return
-			}
-
-			proxyConn, err := tcpDialer.Dial("tcp", fqdn+":"+strconv.Itoa(tcpAddr.Port))
-			if err != nil {
-				slog.Error("Failed to dial:", "err", err)
-				_ = conn.Close()
-				return
-			}
-
-			relay := func(src net.Conn, dst net.Conn) {
-				_, _ = io.Copy(dst, src)
-				_ = dst.Close()
-				_ = src.Close()
-			}
-			go relay(conn, proxyConn)
-			go relay(proxyConn, conn)
-
+			network = "tcp"
+			timeout = tcpTimeout
 		case udpProtocolNumber:
-			slog.Warn("Not implemented yet")
+			network = "udp"
+			timeout = udpTimeout
 		default:
 			slog.Error("Unexpected error: unknown protocol number:", "t", t)
 		}
+
+		proxyConn, err := proxyDialer.Dial(network, realDst)
+		if err != nil {
+			slog.Error("Failed to dial through proxy:", "err", err)
+			_ = conn.Close()
+			return
+		}
+
+		go relayWithIdleTimeout(conn, proxyConn, timeout)
 	})
 
 	slog.Info("FIPPF started")
@@ -143,4 +156,64 @@ func main() {
 
 	<-termChan
 	slog.Info("Quit")
+}
+
+func relayWithIdleTimeout(conn net.Conn, proxyConn net.Conn, timeout int) {
+	defer func() {
+		_ = conn.Close()
+		_ = proxyConn.Close()
+	}()
+
+	c := make(chan int64, 2)
+
+	relay := func(src net.Conn, dst net.Conn) {
+		// src and dst both have deadline set.
+		// one of them is gonet.TCPConn/UDPConn created from gvisor netstack,
+		// which timeout handling is slightly different
+		n, err := io.Copy(dst, src)
+		if err != nil {
+			netOpErr := &net.OpError{}
+			switch {
+			case errors.Is(err, os.ErrDeadlineExceeded):
+				c <- n
+			case errors.As(err, &netOpErr):
+				// gonet has its own unexported error type `timeoutError` for timeout
+				// see gvisor/pkg/tcpip/adapters/gonet/gonet.go
+				if (err.(*net.OpError)).Timeout() {
+					c <- n
+				} else {
+					c <- -1 // non-timeout error
+				}
+			default:
+				c <- -1 // non-timeout error
+			}
+		} else {
+			c <- -1 // TCP socket closed
+		}
+	}
+
+	for {
+		if timeout > 0 {
+			err := conn.SetDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
+			if err != nil {
+				slog.Error("Failed to set deadline for connection:", "conn", conn, "err", err)
+				return
+			}
+			err = proxyConn.SetDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
+			if err != nil {
+				slog.Error("Failed to set deadline for connection:", "proxyConn", proxyConn, "err", err)
+				return
+			}
+		}
+		go relay(conn, proxyConn)
+		go relay(proxyConn, conn)
+		// gather relays' status of current epoch:
+		// a negative number means connection closed or error occurred, no need to continue relaying.
+		// a non-negative number means number of bytes transferred on one direction.
+		n1 := <-c
+		n2 := <-c
+		if n1 < 0 || n2 < 0 || (n1 == 0 && n2 == 0) {
+			return
+		}
+	}
 }
