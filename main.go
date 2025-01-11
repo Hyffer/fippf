@@ -212,8 +212,12 @@ func relayWithIdleTimeout(conn net.Conn, proxyConn net.Conn, timeout int) {
 		// a negative number means connection closed or error occurred, no need to continue relaying.
 		// a non-negative number means number of bytes transferred on one direction.
 		n1 := <-c
+		if n1 < 0 {
+			// either direction of relay ends or error occurs
+			return
+		}
 		n2 := <-c
-		if n1 < 0 || n2 < 0 || (n1 == 0 && n2 == 0) {
+		if n2 < 0 || (n1 == 0 && n2 == 0) {
 			return
 		}
 	}
