@@ -110,12 +110,13 @@ func main() {
 
 	// main handler
 	tunIf.SetConnHandler(func(t uint32, acceptor ConnAcceptor, dst netip.AddrPort) {
-		fqdn, err := pool.RevResolve(dst.Addr().AsSlice())
+		fqdn, ref, err := pool.RevResolveAndRef(dst.Addr().AsSlice())
 		if err != nil {
 			slog.Error("Failed to resolve FQDN:", "err", err, "ip", dst.Addr())
 			acceptor.deny()
 			return
 		}
+		defer ref.deref()
 		realDst := net.JoinHostPort(fqdn, strconv.Itoa(int(dst.Port())))
 
 		conn, err := acceptor.accept()
@@ -146,7 +147,7 @@ func main() {
 			return
 		}
 
-		go relayWithIdleTimeout(conn, proxyConn, timeout)
+		relayWithIdleTimeout(conn, proxyConn, timeout) // block until relay exits
 	})
 
 	slog.Info("FIPPF started")

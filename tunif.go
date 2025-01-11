@@ -84,7 +84,7 @@ func NewTunIf(ifName string, mtu uint32, ipRange string, ip6Range string) (*TunI
 		stack: s,
 		name:  ifName,
 		mtu:   mtu,
-		ip:    ip,
+		ip:    ip.To4(),
 		cidr:  *cidr,
 		ip6:   ip6,
 		cidr6: *cidr6,
@@ -185,7 +185,7 @@ func (tunIf *TunIf) SetConnHandler(handler func(t uint32, acceptor ConnAcceptor,
 		}
 		dstSockAddr := netip.AddrPortFrom(dstAddr, request.ID().LocalPort)
 
-		handler(t, acceptor, dstSockAddr)
+		go handler(t, acceptor, dstSockAddr)
 	}
 
 	tcpHandler := tcp.NewForwarder(tunIf.stack, 0, 4096, func(request *tcp.ForwarderRequest) {

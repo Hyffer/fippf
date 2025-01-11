@@ -11,6 +11,17 @@ import (
 	"sync"
 )
 
+type Ref struct {
+	deref func()
+}
+
+type Mapping struct {
+	idx      uint32
+	fqdn     string
+	useCount int           // number of relays opening on this mapping
+	ptr      *list.Element // points to the element of itself if in the victim list, nil otherwise
+}
+
 type IPPool struct {
 	sync.Mutex
 	cidr    net.IPNet
@@ -19,9 +30,9 @@ type IPPool struct {
 	current uint32
 	reserve mapset.Set
 
-	n2i      map[string]uint32
-	i2n      map[uint32]string
-	fqdnList list.List
+	n2m     map[string]*Mapping
+	i2m     map[uint32]*Mapping
+	victims *list.List
 }
 
 func NewIPPool(cidr net.IPNet, reserveIp net.IP, cidr6 net.IPNet, reserveIp6 net.IP) *IPPool {
@@ -52,14 +63,14 @@ func NewIPPool(cidr net.IPNet, reserveIp net.IP, cidr6 net.IPNet, reserveIp6 net
 	}
 
 	pool := &IPPool{
-		cidr:     cidr,
-		cidr6:    cidr6,
-		size:     size,
-		current:  0,
-		reserve:  reserve,
-		n2i:      make(map[string]uint32),
-		i2n:      make(map[uint32]string),
-		fqdnList: *list.New(),
+		cidr:    cidr,
+		cidr6:   cidr6,
+		size:    size,
+		current: 0,
+		reserve: reserve,
+		n2m:     make(map[string]*Mapping),
+		i2m:     make(map[uint32]*Mapping),
+		victims: list.New(),
 	}
 	return pool
 }
@@ -71,74 +82,117 @@ func (p *IPPool) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 	for _, question := range r.Question {
 		fqdn := question.Name
-		ip4, ip6 := p.Resolve(fqdn)
-		slog.Debug("[FakeDNS] resolve:", "fqdn", fqdn, "ip4", ip4, "ip6", ip6)
-		if question.Qtype == dns.TypeA {
-			rr := new(dns.A)
-			rr.Hdr = dns.RR_Header{Name: fqdn, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 0}
-			rr.A = ip4
-			msg.Answer = append(msg.Answer, rr)
-		} else if question.Qtype == dns.TypeAAAA {
-			rr := new(dns.AAAA)
-			rr.Hdr = dns.RR_Header{Name: fqdn, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 0}
-			rr.AAAA = ip6
-			msg.Answer = append(msg.Answer, rr)
+		ip4, ip6, err := p.Resolve(fqdn)
+		if err != nil {
+			msg.SetRcode(r, dns.RcodeServerFailure)
+			slog.Warn("[FakeDNS] failed to resolve:", "fqdn", fqdn, "err", err)
 		} else {
-			// ignore other types
+			slog.Debug("[FakeDNS] resolve:", "fqdn", fqdn, "ip4", ip4, "ip6", ip6)
+			if question.Qtype == dns.TypeA {
+				rr := new(dns.A)
+				rr.Hdr = dns.RR_Header{Name: fqdn, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 0}
+				rr.A = ip4
+				msg.Answer = append(msg.Answer, rr)
+			} else if question.Qtype == dns.TypeAAAA {
+				rr := new(dns.AAAA)
+				rr.Hdr = dns.RR_Header{Name: fqdn, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 0}
+				rr.AAAA = ip6
+				msg.Answer = append(msg.Answer, rr)
+			} else {
+				// ignore other types
+			}
 		}
 	}
 	_ = w.WriteMsg(msg)
 }
 
-func (p *IPPool) Alloc(fqdn string) uint32 {
-	p.fqdnList.PushBack(fqdn)
+func (p *IPPool) Alloc(fqdn string) (uint32, error) {
 	for {
-		if p.current >= p.size {
+		if p.current >= p.size-1 {
 			// replace one
-			victim := p.fqdnList.Front().Value.(string)
-			victimIdx := p.n2i[victim]
-			p.fqdnList.Remove(p.fqdnList.Front())
-			slog.Debug("[FakeDNS] replace:", "victim", victim, "index", victimIdx)
+			if p.victims.Len() == 0 {
+				return 0, fmt.Errorf("no available IP to recycle for allocation")
+			}
+			victim := p.victims.Front()
+			p.victims.MoveToBack(victim)
+			mapping := victim.Value.(*Mapping)
+			slog.Debug("[FakeDNS] replace:", "victim-fqdn", mapping.fqdn, "victim-index", mapping.idx)
 
-			delete(p.n2i, victim)
-			p.n2i[fqdn] = victimIdx
-			p.i2n[victimIdx] = fqdn
-			return victimIdx
+			delete(p.n2m, mapping.fqdn)
+			p.n2m[fqdn] = mapping
+			mapping.fqdn = fqdn
+			return mapping.idx, nil
 		} else {
 			p.current++
 			if p.reserve.Contains(p.current) {
 				slog.Debug("[FakeDNS] skip index:", "index", p.current)
 				continue
 			}
-			p.n2i[fqdn] = p.current
-			p.i2n[p.current] = fqdn
-			return p.current
+			mapping := &Mapping{
+				idx:      p.current,
+				fqdn:     fqdn,
+				useCount: 0,
+			}
+			mapping.ptr = p.victims.PushBack(mapping)
+			p.n2m[fqdn] = mapping
+			p.i2m[p.current] = mapping
+			return p.current, nil
 		}
 	}
 }
 
-func (p *IPPool) Resolve(fqdn string) (net.IP, net.IP) {
+func (p *IPPool) Resolve(fqdn string) (ip4 net.IP, ip6 net.IP, err error) {
 	p.Lock()
 	defer p.Unlock()
-	if idx, ok := p.n2i[fqdn]; ok {
-		return p.idx2ip(idx)
+	if mapping, ok := p.n2m[fqdn]; ok {
+		ip4, ip6 = p.idx2ip(mapping.idx)
+		err = nil
+		return
 	} else {
-		idx := p.Alloc(fqdn)
+		idx, e := p.Alloc(fqdn)
+		if e != nil {
+			return nil, nil, fmt.Errorf("failed to allocate fake IP: %w", e)
+		}
 		slog.Debug("[FakeDNS] allocate:", "fqdn", fqdn, "index", idx)
-		return p.idx2ip(idx)
+		ip4, ip6 = p.idx2ip(idx)
+		err = nil
+		return
 	}
 }
 
-func (p *IPPool) RevResolve(ip net.IP) (string, error) {
+func (p *IPPool) RevResolveAndRef(ip net.IP) (string, *Ref, error) {
+	p.Lock()
+	defer p.Unlock()
 	if p.Contains(ip) {
 		idx := p.ip2idx(ip)
-		if fqdn, ok := p.i2n[idx]; ok {
-			slog.Debug("[FakeDNS] rev-resolve:", "fake-ip", ip, "fqdn", fqdn)
-			return fqdn, nil
+		if mapping, ok := p.i2m[idx]; ok {
+			mapping.useCount++
+			if mapping.ptr != nil {
+				p.victims.Remove(mapping.ptr) // remove from victim list, lock this mapping
+				mapping.ptr = nil
+			}
+			slog.Debug("[FakeDNS] rev-resolve and ref:",
+				"fake-ip", ip, "fqdn", mapping.fqdn, "use-count", mapping.useCount)
+			ref := &Ref{deref: func() {
+				p.Lock()
+				defer p.Unlock()
+				if mapping.useCount > 0 {
+					mapping.useCount--
+					if mapping.useCount == 0 {
+						mapping.ptr = p.victims.PushBack(mapping)
+					}
+					slog.Debug("[FakeDNS] deref:",
+						"fake-ip", ip, "fqdn", mapping.fqdn, "use-count", mapping.useCount)
+				} else {
+					slog.Error("This should not happen: Deref but useCount not positive:",
+						"fake-ip", ip)
+				}
+			}}
+			return mapping.fqdn, ref, nil
 		}
-		return "", fmt.Errorf("no matching fqdn of requested IP")
+		return "", nil, fmt.Errorf("no matching fqdn of requested IP")
 	}
-	return "", fmt.Errorf("IP not in pool")
+	return "", nil, fmt.Errorf("IP not in pool")
 }
 
 func (p *IPPool) Contains(ip net.IP) bool {
