@@ -19,22 +19,22 @@ type DNSRule struct {
 }
 
 type DNSHandler struct {
-	rule    *[]DNSRule
-	geoSite *geosite.Database
-	ipPool  *IPPool
-	direct  []string
+	rule     *[]DNSRule
+	geoSite  *geosite.Database
+	ipPool   *IPPool
+	dnsGroup map[string][]string
 }
 
-func NewDNSHandler(rule *[]DNSRule, geosite_file string, ipPool *IPPool, direct []string) (*DNSHandler, error) {
+func NewDNSHandler(rule *[]DNSRule, geosite_file string, ipPool *IPPool, dnsGroup map[string][]string) (*DNSHandler, error) {
 	geoSite, err := geosite.FromFile(geosite_file)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load geosite file: %w", err)
 	}
 	return &DNSHandler{
-		rule:    rule,
-		geoSite: geoSite,
-		ipPool:  ipPool,
-		direct:  direct,
+		rule:     rule,
+		geoSite:  geoSite,
+		ipPool:   ipPool,
+		dnsGroup: dnsGroup,
 	}, nil
 }
 
@@ -97,25 +97,41 @@ func (handler *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					rr.AAAA = ip6
 					msg.Answer = append(msg.Answer, rr)
 				}
-			case "direct":
-				msg.Answer = append(msg.Answer, DNSPassThrough(fqdn, question.Qtype, handler.direct)...)
 			case "upstream":
 				slog.Error("[DNS Handler] Not implemented yet")
 			case "block":
 			default:
-				slog.Error("[DNS Handler] Unexpected:", "resolver", resolver)
+				re, _ := regexp.Compile("grp_(.+)")
+				matches := re.FindStringSubmatch(resolver)
+				if matches != nil && len(matches) == 2 {
+					// pass through to dns group
+					group := matches[1]
+					msg.Answer = append(msg.Answer, handler.DNSPassThrough(fqdn, question.Qtype, group)...)
+
+				} else {
+					slog.Error("[DNS Handler] Unexpected:", "resolver", resolver)
+				}
 			}
 
 		} else {
 			// pass through query types other than A and AAAA
-			msg.Answer = append(msg.Answer, DNSPassThrough(fqdn, question.Qtype, handler.direct)...)
+			msg.Answer = append(msg.Answer, handler.DNSPassThrough(fqdn, question.Qtype, "default")...)
 		}
 	}
 	_ = w.WriteMsg(msg)
 }
 
-func DNSPassThrough(domain string, qtype uint16, serverIPs []string) []dns.RR {
-	slog.Debug("[DNS Handler] Pass through query:", "domain", domain, "qtype", dns.TypeToString[qtype])
+func (handler *DNSHandler) DNSPassThrough(fqdn string, qtype uint16, group string) []dns.RR {
+	ips, ok := handler.dnsGroup[group]
+	if !ok {
+		slog.Error("[DNS Handler] DNS group not found:", "group", group)
+		return nil
+	}
+	slog.Debug("[DNS Handler] Pass through query:", "fqdn", fqdn, "qtype", dns.TypeToString[qtype], "group", group)
+	return DNSQuery(fqdn, qtype, ips)
+}
+
+func DNSQuery(domain string, qtype uint16, serverIPs []string) []dns.RR {
 	m := new(dns.Msg)
 	m.SetQuestion(dns.Fqdn(domain), qtype)
 	m.RecursionDesired = true

@@ -40,7 +40,7 @@ func main() {
 	viper.SetDefault("tcp_timeout", 600)
 
 	viper.SetDefault("geosite_file", "./dlc.dat")
-	viper.SetDefault("dns_direct", []string{"8.8.8.8", "223.5.5.5"})
+	viper.SetDefault("dns_group", map[string][]string{"default": {"8.8.8.8", "223.5.5.5"}})
 
 	viper.AddConfigPath(pflag.Lookup("config_dir").Value.String())
 	viper.SetConfigName("config")
@@ -97,7 +97,7 @@ func main() {
 
 	dnsHdlr, err := NewDNSHandler(
 		dnsRule, geosite_file, pool,
-		viper.GetStringSlice("dns_direct"),
+		viper.GetStringMapStringSlice("dns_group"),
 	)
 	if err != nil {
 		slog.Error("Failed to create DNS handler:", "err", err)
