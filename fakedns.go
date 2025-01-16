@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/deckarep/golang-set"
-	"github.com/miekg/dns"
 	"log/slog"
 	"net"
 	"sync"
@@ -73,37 +72,6 @@ func NewIPPool(cidr net.IPNet, reserveIp net.IP, cidr6 net.IPNet, reserveIp6 net
 		victims: list.New(),
 	}
 	return pool
-}
-
-func (p *IPPool) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
-	msg := new(dns.Msg)
-	msg.SetReply(r)
-	msg.Authoritative = true
-
-	for _, question := range r.Question {
-		fqdn := question.Name
-		ip4, ip6, err := p.Resolve(fqdn)
-		if err != nil {
-			msg.SetRcode(r, dns.RcodeServerFailure)
-			slog.Warn("[FakeDNS] failed to resolve:", "fqdn", fqdn, "err", err)
-		} else {
-			slog.Debug("[FakeDNS] resolve:", "fqdn", fqdn, "ip4", ip4, "ip6", ip6)
-			if question.Qtype == dns.TypeA {
-				rr := new(dns.A)
-				rr.Hdr = dns.RR_Header{Name: fqdn, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 0}
-				rr.A = ip4
-				msg.Answer = append(msg.Answer, rr)
-			} else if question.Qtype == dns.TypeAAAA {
-				rr := new(dns.AAAA)
-				rr.Hdr = dns.RR_Header{Name: fqdn, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: 0}
-				rr.AAAA = ip6
-				msg.Answer = append(msg.Answer, rr)
-			} else {
-				// ignore other types
-			}
-		}
-	}
-	_ = w.WriteMsg(msg)
 }
 
 func (p *IPPool) Alloc(fqdn string) (uint32, error) {

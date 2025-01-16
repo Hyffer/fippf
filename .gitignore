@@ -1,4 +1,5 @@
 .idea
 config.*
+dlc.dat
 curl
 go_build_fippf

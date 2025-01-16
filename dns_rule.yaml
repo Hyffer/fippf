@@ -1,0 +1,35 @@
+# Path to geosite database file. If relative, it is relative to config dir
+# https://github.com/v2fly/domain-list-community
+geosite_file: "./dlc.dat"
+
+dns_direct:
+  - 8.8.8.8
+  - 223.5.5.5
+
+# DNS rule is a list, each item contains matcher and resolver.
+# Matcher:
+# - "regex" matches domain name with regular expression.
+#           syntax: https://pkg.go.dev/regexp/syntax
+# - "geosite" matches geolocation of domain name
+# Resolver:
+# The value of resolver should be one of
+# - "block" block/drop this query
+# - "fakeip" using fake IP address
+# - "direct" solve DNS query with `dns_direct` provided above
+# - "upstream" solve DNS query with DNS server provided by DHCP (not supported yet)
+
+# Items are checked sequentially in the given order.
+# When one item matches, i.e. all matchers in this item match, its resolver is used.
+# An item with no matcher is always matched, as a convenient way to set default resolver.
+# If no item matches, the default is "fakeip".
+
+# Rule only applied to A and AAAA queries,
+# others are passed through to `dns_direct` provided above
+dns_rule:
+  - regex: "[[:alpha:]]*.ntp.org$"
+    resolver: "direct"
+  - geosite: "category-ads-all"
+    resolver: "block"
+  - geosite: "geolocation-!cn"
+    resolver: "fakeip"
+  - resolver: "direct"

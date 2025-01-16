@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"os"
 	"os/signal"
+	"path"
 	"strconv"
 	"syscall"
 	"time"
@@ -38,6 +39,9 @@ func main() {
 	viper.SetDefault("udp_timeout", 30)
 	viper.SetDefault("tcp_timeout", 600)
 
+	viper.SetDefault("geosite_file", "./dlc.dat")
+	viper.SetDefault("dns_direct", []string{"8.8.8.8", "223.5.5.5"})
+
 	viper.AddConfigPath(pflag.Lookup("config_dir").Value.String())
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -45,6 +49,8 @@ func main() {
 	if err != nil {
 		slog.Warn("Cannot read config file:", "err", err)
 	}
+	viper.SetConfigName("dns_rule")
+	_ = viper.MergeInConfig()
 
 	slog.Info("Set", "log_level", viper.GetString("log_level"))
 	switch viper.GetString("log_level") {
@@ -73,10 +79,35 @@ func main() {
 
 	// Fake-IP DNS server
 	pool := NewIPPool(tunIf.cidr, tunIf.ip, tunIf.cidr6, tunIf.ip6)
+
+	dnsRule := &[]DNSRule{}
+	if viper.InConfig("dns_rule") {
+		err = viper.UnmarshalKey("dns_rule", dnsRule)
+		if err != nil {
+			slog.Error("Unmarshal DNS rule failed:", "err", err)
+		}
+	} else {
+		slog.Warn("No DNS rule found in config file")
+	}
+
+	geosite_file := viper.GetString("geosite_file")
+	if !path.IsAbs(geosite_file) {
+		geosite_file = path.Join(pflag.Lookup("config_dir").Value.String(), geosite_file)
+	}
+
+	dnsHdlr, err := NewDNSHandler(
+		dnsRule, geosite_file, pool,
+		viper.GetStringSlice("dns_direct"),
+	)
+	if err != nil {
+		slog.Error("Failed to create DNS handler:", "err", err)
+		os.Exit(1)
+	}
+
 	dnsSrv := &dns.Server{
 		Addr:    viper.GetString("dns_listen") + ":" + strconv.Itoa(viper.GetInt("dns_port")),
 		Net:     "udp",
-		Handler: pool,
+		Handler: dnsHdlr,
 		UDPSize: 65535,
 	}
 	defer func(dnsSrv *dns.Server) {
