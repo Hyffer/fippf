@@ -2,10 +2,10 @@ package main
 
 import (
 	"errors"
+	"github.com/0990/socks5"
 	"github.com/miekg/dns"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/txthinking/socks5"
 	"io"
 	"log/slog"
 	"net"
@@ -125,13 +125,7 @@ func main() {
 	// Proxy backend
 	proxyBE := viper.GetString("proxy")
 	slog.Info("Using proxy backend", "socks5", proxyBE)
-	// socks5 in go library does not support UDP
-	// but this one does not support dial timeout todo
-	proxyDialer, err := socks5.NewClient(proxyBE, "", "", 0, 0)
-	if err != nil {
-		slog.Error("Failed to construct proxy dialer:", "err", err)
-		os.Exit(1)
-	}
+	proxyDialer := socks5.NewSocks5Client(socks5.ClientCfg{ServerAddr: proxyBE})
 
 	tcpTimeout := viper.GetInt("tcp_timeout")
 	udpTimeout := viper.GetInt("udp_timeout")
@@ -171,7 +165,7 @@ func main() {
 			slog.Error("Unexpected error: unknown protocol number:", "t", t)
 		}
 
-		proxyConn, err := proxyDialer.Dial(network, realDst)
+		proxyConn, err := proxyDialer.DialTimeout(network, realDst, time.Second)
 		if err != nil {
 			slog.Error("Failed to dial through proxy:", "err", err)
 			_ = conn.Close()
