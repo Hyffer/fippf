@@ -19,10 +19,11 @@ type DNSRule struct {
 }
 
 type DNSHandler struct {
-	rule     *[]DNSRule
-	geoSite  *geosite.Database
-	ipPool   *IPPool
-	dnsGroup map[string][]string
+	rule        *[]DNSRule
+	geoSite     *geosite.Database
+	ipPool      *IPPool
+	dnsUpstream []string
+	dnsGroup    map[string][]string
 }
 
 func NewDNSHandler(rule *[]DNSRule, geosite_file string, ipPool *IPPool, dnsGroup map[string][]string) (*DNSHandler, error) {
@@ -30,11 +31,17 @@ func NewDNSHandler(rule *[]DNSRule, geosite_file string, ipPool *IPPool, dnsGrou
 	if err != nil {
 		return nil, fmt.Errorf("failed to load geosite file: %w", err)
 	}
+	dnsUpstream := GetUpstreamDNS()
+	if dnsUpstream == nil || len(dnsUpstream) == 0 {
+		dnsUpstream = dnsGroup["default"]
+	}
+	slog.Info("[DNS Handler] Upstream DNS servers", "ip", dnsUpstream)
 	return &DNSHandler{
-		rule:     rule,
-		geoSite:  geoSite,
-		ipPool:   ipPool,
-		dnsGroup: dnsGroup,
+		rule:        rule,
+		geoSite:     geoSite,
+		ipPool:      ipPool,
+		dnsUpstream: dnsUpstream,
+		dnsGroup:    dnsGroup,
 	}, nil
 }
 
@@ -98,7 +105,7 @@ func (handler *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					msg.Answer = append(msg.Answer, rr)
 				}
 			case "upstream":
-				slog.Error("[DNS Handler] Not implemented yet")
+				msg.Answer = append(msg.Answer, DNSQuery(fqdn, question.Qtype, handler.dnsUpstream)...)
 			case "block":
 			default:
 				re, _ := regexp.Compile("grp_(.+)")
@@ -115,7 +122,7 @@ func (handler *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 		} else {
 			// pass through query types other than A and AAAA
-			msg.Answer = append(msg.Answer, handler.DNSPassThrough(fqdn, question.Qtype, "default")...)
+			msg.Answer = append(msg.Answer, DNSQuery(fqdn, question.Qtype, handler.dnsUpstream)...)
 		}
 	}
 	_ = w.WriteMsg(msg)

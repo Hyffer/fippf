@@ -18,7 +18,8 @@ dns_group:
 # - "block" block/drop this query
 # - "fakeip" using fake IP address
 # - "grp_<grpName>" solve DNS query with `dns_group[grpName]` provided above
-# - "upstream" solve DNS query with DNS server provided by DHCP (not supported yet)
+# - "upstream" solve DNS query with DNS configured on system default network interface, including those provided by DHCP.
+#           If no DNS found, it will be the same as `dns_group[default]`
 
 # Items are checked sequentially in the given order.
 # When one item matches, i.e. all matchers in this item match, its resolver is used.
@@ -26,7 +27,7 @@ dns_group:
 # If no item matches, the default is "fakeip".
 
 # Rule only applied to A and AAAA queries,
-# others are passed through to `dns_group[default]` provided above
+# others are passed through to "upstream"
 dns_rule:
   - regex: "[[:alpha:]]*.ntp.org$"
     resolver: "grp_default"
@@ -34,4 +35,4 @@ dns_rule:
     resolver: "block"
   - geosite: "geolocation-!cn"
     resolver: "fakeip"
-  - resolver: "grp_default"
+  - resolver: "upstream"
