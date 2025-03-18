@@ -194,8 +194,15 @@ func (tunIf *TunIf) SetConnHandler(handler func(t uint32, acceptor ConnAcceptor,
 				var wq waiter.Queue
 				ep, ipErr := request.CreateEndpoint(&wq)
 				if ipErr != nil {
+					request.Complete(true)
 					return nil, fmt.Errorf("error creating endpoint for TCP forwarder: %s", ipErr)
 				}
+				// `request.Complete(false)` does not terminate tcp connection,
+				// it only completes the current connection request and releases `inFlight` record.
+				// `inFlight` overflow will cause Forwarder dropping new connections.
+				// refer to gvisor/pkg/tcpip/transport/tcp/forwarder.go
+				// and https://github.com/tailscale/tailscale/blob/dc18091678ebf3928bf3ead518f2d6e979547526/wgengine/netstack/netstack.go#L1294
+				request.Complete(false)
 				tcpConn := gonet.NewTCPConn(&wq, ep)
 				return tcpConn, nil
 			},

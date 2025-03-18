@@ -74,15 +74,28 @@ func (handler *DNSHandler) MatchRule(fqdn string) string {
 func (handler *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	msg := new(dns.Msg)
 	msg.SetReply(r)
-	msg.Authoritative = true
 	if r.RecursionDesired {
 		msg.RecursionAvailable = true
 	}
 
-	for _, question := range r.Question {
+	if r.Opcode != dns.OpcodeQuery || len(r.Question) == 0 {
+		msg.SetRcode(r, dns.RcodeNotImplemented)
+		slog.Debug("[DNS Handler] Reject for not implemented. Rare dns packet", "from", w.RemoteAddr(),
+			"opcode", dns.OpcodeToString[r.Opcode], "qdcount", len(r.Question))
+
+	} else if len(r.Question) > 1 {
+		// In consideration of RFC 9619 https://datatracker.ietf.org/doc/rfc9619/,
+		// and most of the DNS servers actually do not support this https://maradns.samiam.org/multiple.qdcount.html
+		msg.SetRcode(r, dns.RcodeFormatError)
+		slog.Debug("[DNS Handler] Reject for incorrect format. "+
+			"Multiple questions in one query, this might be a client side error.", "client", w.RemoteAddr())
+
+	} else {
+		// well-formed standard query
+		question := r.Question[0]
 		fqdn := question.Name
 
-		if question.Qtype == dns.TypeA || question.Qtype == dns.TypeAAAA {
+		if question.Qclass == dns.ClassINET && (question.Qtype == dns.TypeA || question.Qtype == dns.TypeAAAA) {
 			// split dns query by custom rule
 			resolver := handler.MatchRule(fqdn)
 			switch resolver {
@@ -90,7 +103,8 @@ func (handler *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				ip4, ip6, err := handler.ipPool.Resolve(fqdn)
 				if err != nil {
 					slog.Warn("[DNS Handler] Fake IP resolve failed:", "fqdn", fqdn, "err", err)
-					continue
+					msg.SetRcode(r, dns.RcodeServerFailure)
+					break
 				}
 				slog.Debug("[DNS Handler] Fake IP resolve:", "fqdn", fqdn, "ip4", ip4, "ip6", ip6)
 				if question.Qtype == dns.TypeA {
@@ -105,7 +119,7 @@ func (handler *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					msg.Answer = append(msg.Answer, rr)
 				}
 			case "upstream":
-				msg.Answer = append(msg.Answer, DNSQuery(fqdn, question.Qtype, handler.dnsUpstream)...)
+				msg = DNSQuery(r, handler.dnsUpstream)
 			case "block":
 			default:
 				re, _ := regexp.Compile("grp_(.+)")
@@ -113,7 +127,7 @@ func (handler *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				if matches != nil && len(matches) == 2 {
 					// pass through to dns group
 					group := matches[1]
-					msg.Answer = append(msg.Answer, handler.DNSPassThrough(fqdn, question.Qtype, group)...)
+					msg = handler.DNSPassThrough(r, group)
 
 				} else {
 					slog.Error("[DNS Handler] Unexpected:", "resolver", resolver)
@@ -122,44 +136,48 @@ func (handler *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 		} else {
 			// pass through query types other than A and AAAA
-			msg.Answer = append(msg.Answer, DNSQuery(fqdn, question.Qtype, handler.dnsUpstream)...)
+			slog.Debug("[DNS Handler] Pass through dns query that fake-IP DNS does not handle:", "fqdn", fqdn,
+				"qtype", dns.TypeToString[question.Qtype], "qclass", dns.ClassToString[question.Qclass])
+			msg = DNSQuery(r, handler.dnsUpstream)
 		}
 	}
-	_ = w.WriteMsg(msg)
+
+	if msg != nil {
+		_ = w.WriteMsg(msg)
+	}
 }
 
-func (handler *DNSHandler) DNSPassThrough(fqdn string, qtype uint16, group string) []dns.RR {
+func (handler *DNSHandler) DNSPassThrough(req *dns.Msg, group string) *dns.Msg {
 	ips, ok := handler.dnsGroup[group]
 	if !ok {
 		slog.Error("[DNS Handler] DNS group not found:", "group", group)
 		return nil
 	}
-	slog.Debug("[DNS Handler] Pass through query:", "fqdn", fqdn, "qtype", dns.TypeToString[qtype], "group", group)
-	return DNSQuery(fqdn, qtype, ips)
+	return DNSQuery(req, ips)
 }
 
-func DNSQuery(domain string, qtype uint16, serverIPs []string) []dns.RR {
-	m := new(dns.Msg)
-	m.SetQuestion(dns.Fqdn(domain), qtype)
-	m.RecursionDesired = true
-
+func DNSQuery(req *dns.Msg, serverIPs []string) *dns.Msg {
 	c := &dns.Client{Timeout: 1 * time.Second}
-	response := new(dns.Msg)
-	response = nil
+	var succResp, lastResp *dns.Msg = nil, nil
 	for _, serverIP := range serverIPs {
-		resp, _, err := c.Exchange(m, serverIP+":53")
-		if err != nil ||
-			resp == nil ||
-			resp.Rcode != dns.RcodeSuccess {
+		resp, _, err := c.Exchange(req, serverIP+":53")
+		if err != nil || resp == nil {
 			continue
 		}
-		response = resp
+		lastResp = resp
+		if resp.Rcode != dns.RcodeSuccess {
+			continue
+		}
+		succResp = resp
 		break
 	}
 
-	if response == nil {
+	if lastResp == nil {
 		slog.Error("[DNS Handler] None of those servers gives an answer", "servers", serverIPs)
 		return nil
 	}
-	return response.Answer
+	if succResp == nil {
+		succResp = lastResp
+	}
+	return succResp
 }
