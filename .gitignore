@@ -1,5 +1,7 @@
 .idea
+.go
 config.*
 dlc.dat
 curl
+fippf
 go_build_fippf

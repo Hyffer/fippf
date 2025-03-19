@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.13.6/.schema/devbox.schema.json",
+  "packages": [
+    "jetbrains.goland@2024.3.3",
+    "go@1.23.5"
+  ],
+  "env": {
+    "GOPATH": "$PWD/.go",
+    "PATH": "$PATH:$PWD/.go/bin",
+    "NIX_HARDENING_ENABLE": ""
+  },
+  "shell": {
+    "init_hook": [
+      "export \"GOROOT=$(go env GOROOT)\"",
+      "echo 'GOROOT:' ${GOROOT}",
+      "echo 'GOPATH:' ${GOPATH}"
+    ],
+    "scripts": {
+      "test": [
+        "echo \"Error: no test specified\" && exit 1"
+      ]
+    }
+  }
+}

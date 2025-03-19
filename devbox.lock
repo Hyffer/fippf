@@ -1,0 +1,101 @@
+{
+  "lockfile_version": "1",
+  "packages": {
+    "go@1.23.5": {
+      "last_modified": "2025-02-07T11:26:36Z",
+      "resolved": "github:NixOS/nixpkgs/d98abf5cf5914e5e4e9d57205e3af55ca90ffc1d#go",
+      "source": "devbox-search",
+      "version": "1.23.5",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/nygq6zbzjqg8zkx8p9xh0ydvvi0v2vvv-go-1.23.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/nygq6zbzjqg8zkx8p9xh0ydvvi0v2vvv-go-1.23.5"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/f3psxd8yplxjxv5nzkhhrczlfdipqqas-go-1.23.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/f3psxd8yplxjxv5nzkhhrczlfdipqqas-go-1.23.5"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/xjyip7f73zvpbld41qgj0jspka4624jr-go-1.23.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/xjyip7f73zvpbld41qgj0jspka4624jr-go-1.23.5"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/kaajk63cgb8yrqvqvlmbss31b6nia854-go-1.23.5",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/kaajk63cgb8yrqvqvlmbss31b6nia854-go-1.23.5"
+        }
+      }
+    },
+    "jetbrains.goland@2024.3.3": {
+      "last_modified": "2025-02-16T00:50:12Z",
+      "resolved": "github:NixOS/nixpkgs/1dcdd535fef84d4671129a10e7072d56dca9a4d3#jetbrains.goland",
+      "source": "devbox-search",
+      "version": "2024.3.3",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/fhm4anwjwr6c912bhmm990wxvk973wb9-goland-2024.3.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/fhm4anwjwr6c912bhmm990wxvk973wb9-goland-2024.3.3"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/cx86idid9b1w5la3b3h0bmga67vfl7dz-goland-2024.3.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/cx86idid9b1w5la3b3h0bmga67vfl7dz-goland-2024.3.3"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/idc5nwq7cs756jmazmbsk04zlz45iqfs-goland-2024.3.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/idc5nwq7cs756jmazmbsk04zlz45iqfs-goland-2024.3.3"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/hmb9scgvqafchiw0b6qrprwqvsvriwkc-goland-2024.3.3",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/hmb9scgvqafchiw0b6qrprwqvsvriwkc-goland-2024.3.3"
+        }
+      }
+    }
+  }
+}

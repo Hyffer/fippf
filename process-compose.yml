@@ -1,0 +1,7 @@
+version: "0.5"
+
+processes:
+  goland-remote:
+   command: goland-remote-dev-server serverMode
+   availability:
+    restart: "always"
