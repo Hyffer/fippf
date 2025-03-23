@@ -3,13 +3,113 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/jsimonetti/rtnetlink"
+	"github.com/mdlayher/netlink"
+	"golang.org/x/sys/unix"
 	"log/slog"
 	"net"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 )
+
+func SetNetworkChangeHandler(callback func()) {
+	// trigger to invoke callback
+	update := make(chan struct{}, 1)
+
+	go func() {
+		for {
+			<-update
+			time.Sleep(10 * time.Second) // wait for network go stable
+			callback()
+		}
+	}()
+
+	// using timer to handle some corner cases when dns changes with no network event
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			select {
+			case update <- struct{}{}:
+			default:
+			}
+		}
+	}()
+
+	// listen to network change event
+	go func() {
+		for {
+			conf := &netlink.Config{
+				Groups: unix.RTMGRP_LINK | unix.RTMGRP_IPV4_ROUTE | unix.RTMGRP_IPV6_ROUTE,
+			}
+			watchConn, err := netlink.Dial(unix.NETLINK_ROUTE, conf)
+			if err != nil {
+				slog.Error("[RTNETLINK] Failed to dial netlink socket, "+
+					"this might cause DNS change not being detected timely.", "err", err)
+				return
+			}
+			for {
+				raw, err := watchConn.Receive()
+				if err != nil {
+					slog.Error("[RTNETLINK] Netlink error when receiving.", "err", err)
+					break
+				}
+				for _, msg := range raw {
+					switch msg.Header.Type {
+					case unix.RTM_NEWROUTE, unix.RTM_DELROUTE:
+						rmsg := rtnetlink.RouteMessage{}
+						err = rmsg.UnmarshalBinary(msg.Data)
+						if err != nil {
+							slog.Error("[RTNETLINK] Failed to unmarshal route message:", "err", err)
+							continue
+						}
+						action := ""
+						if msg.Header.Type == unix.RTM_NEWROUTE {
+							action = "add"
+						} else {
+							action = "del"
+						}
+						dst := rmsg.Attributes.Dst
+						src := rmsg.Attributes.Src
+						gw := rmsg.Attributes.Gateway
+						slog.Debug("[RTNETLINK] Route "+action+":", "dst", dst, "src", src, "gw", gw)
+						if action == "add" && dst == nil {
+							// default route added
+							select {
+							case update <- struct{}{}:
+							default:
+							}
+						}
+					default:
+						lmsg := rtnetlink.LinkMessage{}
+						err = lmsg.UnmarshalBinary(msg.Data)
+						if err != nil {
+							slog.Error("[RTNETLINK] Failed to unmarshal link message:", "err", err)
+							continue
+						}
+						iface := lmsg.Attributes.Name
+						state := lmsg.Attributes.OperationalState
+						slog.Debug("[RTNETLINK] Interface state changed:", "iface", iface, "state", state)
+						if lmsg.Attributes.OperationalState == rtnetlink.OperStateUp {
+							select {
+							case update <- struct{}{}:
+							default:
+							}
+						}
+					} // switch msg.Header.Type
+				} // for _, msg := range raw
+
+			} // receiving loop
+			_ = watchConn.Close()
+			slog.Warn("[RTNETLINK] listener exited, restarting in 10 seconds.")
+			time.Sleep(10 * time.Second)
+		}
+	}()
+}
 
 func GetUpstreamDNS() []string {
 	iface, err := getDefaultInterface()
@@ -58,6 +158,7 @@ func GetUpstreamDNS() []string {
 	return nil
 }
 
+// refer to: https://github.com/nixigaj/go-default-route/blob/master/defaultroute_linux.go
 func getDefaultInterface() (string, error) {
 	f, err := os.Open("/proc/net/route")
 	if err != nil {

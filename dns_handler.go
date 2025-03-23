@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"regexp"
 	"slices"
+	"sync/atomic"
 	"time"
 )
 
@@ -22,7 +23,7 @@ type DNSHandler struct {
 	rule        *[]DNSRule
 	geoSite     *geosite.Database
 	ipPool      *IPPool
-	dnsUpstream []string
+	dnsUpstream *atomic.Value
 	dnsGroup    map[string][]string
 }
 
@@ -31,11 +32,28 @@ func NewDNSHandler(rule *[]DNSRule, geosite_file string, ipPool *IPPool, dnsGrou
 	if err != nil {
 		return nil, fmt.Errorf("failed to load geosite file: %w", err)
 	}
-	dnsUpstream := GetUpstreamDNS()
-	if dnsUpstream == nil || len(dnsUpstream) == 0 {
-		dnsUpstream = dnsGroup["default"]
+
+	if dnsGroup == nil || dnsGroup["default"] == nil || len(dnsGroup["default"]) == 0 {
+		return nil, fmt.Errorf("default dns group not exist or empty")
 	}
-	slog.Info("[DNS Handler] Upstream DNS servers", "ip", dnsUpstream)
+
+	dnsUpstream := &atomic.Value{}
+	dnsUpstream.Store([]string{})
+	updateDNSUpstream := func() {
+		newVal := GetUpstreamDNS()
+		if newVal == nil || len(newVal) == 0 {
+			newVal = dnsGroup["default"]
+		}
+		slog.Debug("[DNS Handler] Upstream DNS servers", "ip", newVal)
+		oldVal := dnsUpstream.Load().([]string)
+		if !slices.Equal(oldVal, newVal) {
+			slog.Info("[DNS Handler] Update upstream DNS servers", "from", oldVal, "to", newVal)
+			dnsUpstream.Store(newVal)
+		}
+	}
+	updateDNSUpstream()
+	SetNetworkChangeHandler(updateDNSUpstream)
+
 	return &DNSHandler{
 		rule:        rule,
 		geoSite:     geoSite,
@@ -119,7 +137,7 @@ func (handler *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					msg.Answer = append(msg.Answer, rr)
 				}
 			case "upstream":
-				msg = DNSQuery(r, handler.dnsUpstream)
+				msg = DNSQuery(r, handler.dnsUpstream.Load().([]string))
 			case "block":
 			default:
 				re, _ := regexp.Compile("grp_(.+)")
@@ -138,7 +156,7 @@ func (handler *DNSHandler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			// pass through query types other than A and AAAA
 			slog.Debug("[DNS Handler] Pass through dns query that fake-IP DNS does not handle:", "fqdn", fqdn,
 				"qtype", dns.TypeToString[question.Qtype], "qclass", dns.ClassToString[question.Qclass])
-			msg = DNSQuery(r, handler.dnsUpstream)
+			msg = DNSQuery(r, handler.dnsUpstream.Load().([]string))
 		}
 	}
 

@@ -5,6 +5,8 @@ go 1.23
 require (
 	github.com/0990/socks5 v1.0.7
 	github.com/deckarep/golang-set v1.8.0
+	github.com/jsimonetti/rtnetlink v1.4.2
+	github.com/mdlayher/netlink v1.7.2
 	github.com/metacubex/geo v0.0.0-20240718103914-a4db326ccfd7
 	github.com/miekg/dns v1.1.62
 	github.com/spf13/pflag v1.0.5
@@ -17,8 +19,11 @@ require (
 require (
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/google/btree v1.0.1 // indirect
+	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/josharian/native v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
+	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/sagernet/sing v0.4.2 // indirect
