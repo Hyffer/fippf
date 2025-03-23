@@ -202,12 +202,14 @@ func getDNSFromNetworkd(iface string) ([]string, error) {
 	// DNS: xxx.xxx.xxx.xxx
 	//      xxx.xxx.xxx.xxx
 	output := sBuilder.String()
+	return parseDNSFromNetworkctl(output)
+}
 
-	re := regexp.MustCompile(`DNS:((?:\s*(?:[0-9.]*|[0-9a-fA-F:]*)\s*)+)`) // extract DNS part
+func parseDNSFromNetworkctl(output string) ([]string, error) {
+	re := regexp.MustCompile(`DNS:((?m:\s*(?:[0-9.]+|[0-9a-fA-F:]+)\s*$)+)`) // extract DNS part
 	str := re.FindStringSubmatch(output)
 	if len(str) < 2 {
-		return nil, fmt.Errorf("failed to extract DNS from networkctl output.\n"+
-			"command: %s\noutput: %s", cmd.String(), output)
+		return nil, fmt.Errorf("failed to extract DNS from networkctl output:\n%s", output)
 	}
 	dns := strings.Fields(str[1])
 	slog.Debug("[DNS UPSTREAM] Get upstream DNS from networkd:", "dns", dns)
@@ -226,12 +228,14 @@ func getDNSFromNM(iface string) ([]string, error) {
 	// IP4.DNS[1]:xxx.xxx.xxx.xxx
 	// IP4.DNS[2]:xxx.xxx.xxx.xxx
 	output := sBuilder.String()
+	return parseDNSFromNmcil(output)
+}
 
+func parseDNSFromNmcil(output string) ([]string, error) {
 	re := regexp.MustCompile(`IP[46]\.DNS\[\d+]:\s*(\S+)`)
 	matches := re.FindAllStringSubmatch(output, -1)
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("failed to extract DNS from nmcli output.\n"+
-			"command: %s\noutput: %s", cmd.String(), output)
+		return nil, fmt.Errorf("failed to extract DNS from nmcli output:\n%s", output)
 	}
 	dns := make([]string, 0, len(matches))
 	for _, match := range matches {
