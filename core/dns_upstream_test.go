@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"reflect"
@@ -106,6 +106,20 @@ Mar 23 14:36:58 my-server systemd-networkd[1551]: enp3s0: DHCPv6 error: No messa
 			},
 			want:    []string{"111.11.1.1", "2.22.222.222", "1234:abc:7890::1", "2345::6666"},
 			wantErr: false,
+		},
+
+		{
+			name: "Networkd not running",
+			// normally this will not arrive at `parseDNSFromNetworkctl`
+			// as `networkctl` exits with status 1 and the error is caught earlier
+			args: args{
+				output: `
+systemd-networkd is not running, output might be incomplete.
+Failed to connect to network service /run/systemd/netif/io.systemd.Network: No such file or directory
+`,
+			},
+			want:    nil,
+			wantErr: true,
 		},
 	}
 

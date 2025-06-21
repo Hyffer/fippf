@@ -1,10 +1,9 @@
-package main
+package core
 
 import (
 	"errors"
 	"github.com/0990/socks5"
 	"github.com/miekg/dns"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"io"
 	"log/slog"
@@ -18,13 +17,7 @@ import (
 	"time"
 )
 
-func main() {
-	pflag.String("config_dir", "/etc/fippf", "config directory")
-	pflag.String("log_level", "info", "one of debug, info, warn, error")
-	pflag.Parse()
-
-	_ = viper.BindPFlag("log_level", pflag.Lookup("log_level"))
-
+func Launch(configDir string) {
 	// Configurations definition
 	viper.SetDefault("if_name", "tun0")
 	viper.SetDefault("mtu", 1500)
@@ -42,7 +35,7 @@ func main() {
 	viper.SetDefault("geosite_file", "./dlc.dat")
 	viper.SetDefault("dns_group", map[string][]string{"default": {"8.8.8.8", "223.5.5.5"}})
 
-	viper.AddConfigPath(pflag.Lookup("config_dir").Value.String())
+	viper.AddConfigPath(configDir)
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	err := viper.ReadInConfig()
@@ -92,7 +85,7 @@ func main() {
 
 	geosite_file := viper.GetString("geosite_file")
 	if !path.IsAbs(geosite_file) {
-		geosite_file = path.Join(pflag.Lookup("config_dir").Value.String(), geosite_file)
+		geosite_file = path.Join(configDir, geosite_file)
 	}
 
 	dnsHdlr, err := NewDNSHandler(

@@ -9,7 +9,7 @@ require (
 	github.com/mdlayher/netlink v1.7.2
 	github.com/metacubex/geo v0.0.0-20240718103914-a4db326ccfd7
 	github.com/miekg/dns v1.1.62
-	github.com/spf13/pflag v1.0.5
+	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/vishvananda/netlink v1.3.0
 	golang.org/x/sys v0.22.0
@@ -21,6 +21,7 @@ require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
@@ -33,6 +34,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
