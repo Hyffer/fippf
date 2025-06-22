@@ -5,6 +5,8 @@ import (
 	"os"
 )
 
+var sockFile string
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "fippf",
@@ -22,5 +24,5 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().
-		StringP("sock", "s", "/run/fippf/fippf.sock", "unix socket file")
+		StringVarP(&sockFile, "sock", "s", "/run/fippf/fippf.sock", "unix socket file")
 }

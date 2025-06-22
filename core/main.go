@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-func Launch(configDir string) {
+func Launch(configDir string, sockFile string) {
 	// Configurations definition
 	viper.SetDefault("if_name", "tun0")
 	viper.SetDefault("mtu", 1500)
@@ -167,6 +167,8 @@ func Launch(configDir string) {
 
 		relayWithIdleTimeout(conn, proxyConn, timeout) // block until relay exits
 	})
+
+	go RunInspector(sockFile)
 
 	slog.Info("FIPPF started")
 

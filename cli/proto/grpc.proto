@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option go_package = "fippf/cli/proto";
+
+package proto;
+
+enum ConfigFormat {
+  YAML = 0;
+  JSON = 1;
+}
+
+service GRPC {
+  rpc InspectConfig(InspectConfigRequest) returns (StringResponse) {}
+}
+
+message InspectConfigRequest {
+  ConfigFormat format = 1;
+}
+
+message StringResponse {
+  string s = 1;
+}

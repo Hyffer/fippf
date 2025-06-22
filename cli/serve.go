@@ -13,7 +13,7 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Launch FIPPF",
 	Run: func(cmd *cobra.Command, args []string) {
-		core.Launch(configDir)
+		core.Launch(configDir, sockFile)
 	},
 }
 
