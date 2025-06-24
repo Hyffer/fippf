@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"io"
 	"os"
 	"time"
 )
@@ -28,23 +29,54 @@ func runWithGRPCClient(
 	}(conn)
 
 	client := proto.NewGRPCClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	ctx := context.Background()
 
 	fn(ctx, client)
 }
 
-// fn calls a gRPC method which returns a string response.
+// `rpcCall` calls a gRPC method which returns a string response.
 func runWithGRPCClientHandleStringResponse(
 	sockFile string,
-	fn func(ctx context.Context, client proto.GRPCClient) (*proto.StringResponse, error),
+	rpcCall func(ctx context.Context, client proto.GRPCClient) (*proto.StringResponse, error),
+	handler func(s string),
 ) {
 	runWithGRPCClient(sockFile, func(ctx context.Context, client proto.GRPCClient) {
-		resp, err := fn(ctx, client)
+		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		resp, err := rpcCall(ctx, client)
 		if err != nil {
 			fmt.Printf("Error calling gRPC method: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println(resp.GetS())
+		handler(resp.GetS())
+	})
+}
+
+// `rpcCall` calls a gRPC method which returns a stream of string.
+// `handler` might be called back multiple times, once for each string received.
+func runWithGRPCClientHandleSStreamResponse(
+	sockFile string,
+	rpcCall func(ctx context.Context, client proto.GRPCClient) (grpc.ServerStreamingClient[proto.StringResponse], error),
+	handler func(s string),
+) {
+	runWithGRPCClient(sockFile, func(ctx context.Context, client proto.GRPCClient) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		stream, err := rpcCall(ctx, client)
+		if err != nil {
+			fmt.Printf("Error calling gRPC method: %v\n", err)
+			os.Exit(1)
+		}
+		for {
+			resp, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				fmt.Printf("Error receiving from stream: %v\n", err)
+				break
+			}
+			handler(resp.GetS())
+		}
 	})
 }

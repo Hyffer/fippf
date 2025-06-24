@@ -4,6 +4,8 @@ import (
 	"errors"
 	"github.com/0990/socks5"
 	"github.com/miekg/dns"
+	"github.com/rs/zerolog"
+	slogzerolog "github.com/samber/slog-zerolog/v2"
 	"github.com/spf13/viper"
 	"io"
 	"log/slog"
@@ -45,19 +47,17 @@ func Launch(configDir string, sockFile string) {
 	viper.SetConfigName("dns_rule")
 	_ = viper.MergeInConfig()
 
-	slog.Info("Set", "log_level", viper.GetString("log_level"))
-	switch viper.GetString("log_level") {
-	case "debug":
-		slog.SetLogLoggerLevel(slog.LevelDebug)
-	case "info":
-		slog.SetLogLoggerLevel(slog.LevelInfo)
-	case "warn":
-		slog.SetLogLoggerLevel(slog.LevelWarn)
-	case "error":
-		slog.SetLogLoggerLevel(slog.LevelError)
-	default:
+	var level slog.Level
+	err = level.UnmarshalText([]byte(viper.GetString("log_level")))
+	if err != nil {
 		slog.Warn("Unknown log level, defaulting to info")
+		level = slog.LevelInfo
 	}
+
+	// Set up logging with zerolog backend
+	zLogger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.DateTime})
+	logger := slog.New(slogzerolog.Option{Level: level, Logger: &zLogger}.NewZerologHandler())
+	slog.SetDefault(logger)
 
 	// Create TUN interface
 	tunIf, err := NewTunIf(

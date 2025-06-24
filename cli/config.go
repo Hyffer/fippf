@@ -25,6 +25,9 @@ var configCmd = &cobra.Command{
 				}
 				return client.InspectConfig(ctx, &proto.InspectConfigRequest{Format: format})
 			},
+			func(s string) {
+				fmt.Println(s)
+			},
 		)
 	},
 }

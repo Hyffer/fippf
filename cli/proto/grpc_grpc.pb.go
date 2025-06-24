@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	GRPC_InspectConfig_FullMethodName = "/proto.GRPC/InspectConfig"
+	GRPC_InspectLog_FullMethodName    = "/proto.GRPC/InspectLog"
 )
 
 // GRPCClient is the client API for GRPC service.
@@ -27,6 +28,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type GRPCClient interface {
 	InspectConfig(ctx context.Context, in *InspectConfigRequest, opts ...grpc.CallOption) (*StringResponse, error)
+	InspectLog(ctx context.Context, in *InspectLogRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StringResponse], error)
 }
 
 type gRPCClient struct {
@@ -47,11 +49,31 @@ func (c *gRPCClient) InspectConfig(ctx context.Context, in *InspectConfigRequest
 	return out, nil
 }
 
+func (c *gRPCClient) InspectLog(ctx context.Context, in *InspectLogRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StringResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &GRPC_ServiceDesc.Streams[0], GRPC_InspectLog_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[InspectLogRequest, StringResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type GRPC_InspectLogClient = grpc.ServerStreamingClient[StringResponse]
+
 // GRPCServer is the server API for GRPC service.
 // All implementations must embed UnimplementedGRPCServer
 // for forward compatibility.
 type GRPCServer interface {
 	InspectConfig(context.Context, *InspectConfigRequest) (*StringResponse, error)
+	InspectLog(*InspectLogRequest, grpc.ServerStreamingServer[StringResponse]) error
 	mustEmbedUnimplementedGRPCServer()
 }
 
@@ -64,6 +86,9 @@ type UnimplementedGRPCServer struct{}
 
 func (UnimplementedGRPCServer) InspectConfig(context.Context, *InspectConfigRequest) (*StringResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectConfig not implemented")
+}
+func (UnimplementedGRPCServer) InspectLog(*InspectLogRequest, grpc.ServerStreamingServer[StringResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method InspectLog not implemented")
 }
 func (UnimplementedGRPCServer) mustEmbedUnimplementedGRPCServer() {}
 func (UnimplementedGRPCServer) testEmbeddedByValue()              {}
@@ -104,6 +129,17 @@ func _GRPC_InspectConfig_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GRPC_InspectLog_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(InspectLogRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GRPCServer).InspectLog(m, &grpc.GenericServerStream[InspectLogRequest, StringResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type GRPC_InspectLogServer = grpc.ServerStreamingServer[StringResponse]
+
 // GRPC_ServiceDesc is the grpc.ServiceDesc for GRPC service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -116,6 +152,12 @@ var GRPC_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _GRPC_InspectConfig_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "InspectLog",
+			Handler:       _GRPC_InspectLog_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "grpc.proto",
 }

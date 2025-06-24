@@ -11,10 +11,16 @@ enum ConfigFormat {
 
 service GRPC {
   rpc InspectConfig(InspectConfigRequest) returns (StringResponse) {}
+  rpc InspectLog(InspectLogRequest) returns (stream StringResponse) {}
 }
 
 message InspectConfigRequest {
   ConfigFormat format = 1;
+}
+
+message InspectLogRequest {
+  sint32 level = 1; // respect to definition in slog package
+  bool plain = 2;
 }
 
 message StringResponse {
