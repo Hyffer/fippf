@@ -114,6 +114,10 @@ func RunInspector(sockFile string) {
 		_ = listener.Close()
 	}(listener)
 
+	if err = os.Chmod(sockFile, 0666); err != nil {
+		slog.Warn("Failed to set permission on socket file. Users may have trouble using the cli.")
+	}
+
 	s := grpc.NewServer()
 	proto.RegisterGRPCServer(s, &gRPCServer{
 		logLock: sync.Mutex{},
