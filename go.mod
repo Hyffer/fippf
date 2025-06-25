@@ -25,6 +25,7 @@ require (
 )
 
 require (
+	github.com/earthboundkid/versioninfo/v2 v2.24.1 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect

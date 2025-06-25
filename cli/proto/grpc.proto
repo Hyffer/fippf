@@ -11,11 +11,19 @@ enum ConfigFormat {
 
 service GRPC {
   rpc InspectConfig(InspectConfigRequest) returns (StringResponse) {}
+  rpc InspectStatus(InspectStatusRequest) returns (StringResponse) {}
+  rpc InspectVersion(InspectVersionRequest) returns (StringResponse) {}
   rpc InspectLog(InspectLogRequest) returns (stream StringResponse) {}
 }
 
 message InspectConfigRequest {
   ConfigFormat format = 1;
+}
+
+message InspectStatusRequest {
+}
+
+message InspectVersionRequest {
 }
 
 message InspectLogRequest {

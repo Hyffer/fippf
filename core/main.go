@@ -168,7 +168,11 @@ func Launch(configDir string, sockFile string) {
 		relayWithIdleTimeout(conn, proxyConn, timeout) // block until relay exits
 	})
 
-	go RunInspector(sockFile)
+	go RunInspector(sockFile,
+		Inspectee{ // components being inspected
+			tunIf, pool, dnsHdlr,
+		},
+	)
 
 	slog.Info("FIPPF started")
 

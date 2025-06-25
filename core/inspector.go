@@ -4,23 +4,36 @@ import (
 	"context"
 	"encoding/json"
 	"fippf/cli/proto"
+	"fmt"
+	"github.com/earthboundkid/versioninfo/v2"
 	"github.com/rs/zerolog"
 	slogmulti "github.com/samber/slog-multi"
 	slogzerolog "github.com/samber/slog-zerolog/v2"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v3"
+	"gvisor.dev/gvisor/pkg/tcpip"
 	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
 
+type Inspectee struct {
+	tunIf   *TunIf
+	pool    *IPPool
+	dnsHdlr *DNSHandler
+}
+
 type gRPCServer struct {
 	proto.UnimplementedGRPCServer
-	logLock sync.Mutex
+	logLock   sync.Mutex
+	inspectee Inspectee
 }
 
 func (server *gRPCServer) InspectConfig(_ context.Context, req *proto.InspectConfigRequest) (*proto.StringResponse, error) {
@@ -41,6 +54,75 @@ func (server *gRPCServer) InspectConfig(_ context.Context, req *proto.InspectCon
 		s = string(out)
 	}
 	return &proto.StringResponse{S: s}, nil
+}
+
+func (server *gRPCServer) InspectStatus(_ context.Context, req *proto.InspectStatusRequest) (*proto.StringResponse, error) {
+	status := make(map[string]any)
+
+	// gVisor network stack status
+	tunStats := server.inspectee.tunIf.stack.Stats()
+	tunStatsInspectProperties := []string{
+		"DroppedPackets",
+		"TCP.CurrentConnected",
+		"TCP.EstablishedClosed",
+		"TCP.ForwardMaxInFlightDrop",
+		"UDP.PacketsReceived",
+	}
+
+	// getStatCounterValue only works when `tunStats.<key>` is a *tcpip.StatCounter.
+	getStatCounterValue := func(key string) (v any) {
+		v = "err"
+		fields := strings.Split(key, ".")
+		obj := reflect.ValueOf(tunStats)
+		for _, field := range fields {
+			if obj.Kind() == reflect.Ptr {
+				obj = obj.Elem() // Dereference pointer
+			}
+			obj = obj.FieldByName(field)
+			if !obj.IsValid() {
+				return
+			}
+		}
+		if obj.Type() == reflect.TypeOf(&tcpip.StatCounter{}) {
+			return obj.Interface().(*tcpip.StatCounter).Value()
+		}
+		return
+	}
+
+	tunIfStatus := make(map[string]any)
+	for _, key := range tunStatsInspectProperties {
+		tunIfStatus[key] = getStatCounterValue(key)
+	}
+	status["gVisor network stack"] = tunIfStatus
+
+	// fake-IP DNS status
+	dnsStatus := make(map[string]any)
+
+	pool := server.inspectee.pool
+	dnsStatus["Victim / Alloc / Total"] =
+		fmt.Sprintf("%d / %d / %d", pool.victims.Len(), pool.current, pool.size)
+
+	dnsStatus["DNS upstream"] = server.inspectee.dnsHdlr.dnsUpstream.Load()
+
+	status["fake-IP DNS"] = dnsStatus
+
+	// other runtime status
+	status["goroutines"] = runtime.NumGoroutine()
+
+	out, err := yaml.Marshal(status)
+	var s string
+	if err != nil {
+		s = "Unexpected error when marshalling status:" + err.Error()
+	} else {
+		s = string(out)
+	}
+	return &proto.StringResponse{S: s}, nil
+}
+
+func (server *gRPCServer) InspectVersion(_ context.Context, _ *proto.InspectVersionRequest) (*proto.StringResponse, error) {
+	return &proto.StringResponse{
+		S: fmt.Sprintf("daemon on %s\n", versioninfo.Short()),
+	}, nil
 }
 
 type RemoteWriter struct {
@@ -86,7 +168,7 @@ func (server *gRPCServer) InspectLog(req *proto.InspectLogRequest, stream grpc.S
 	return nil
 }
 
-func RunInspector(sockFile string) {
+func RunInspector(sockFile string, inspectee Inspectee) {
 	defer func() {
 		slog.Warn("Inspector quited due to preceding error. Monitoring through cli is no longer available.")
 	}()
@@ -120,7 +202,8 @@ func RunInspector(sockFile string) {
 
 	s := grpc.NewServer()
 	proto.RegisterGRPCServer(s, &gRPCServer{
-		logLock: sync.Mutex{},
+		logLock:   sync.Mutex{},
+		inspectee: inspectee,
 	})
 	slog.Info("Inspector started, listening on " + sockFile)
 	if err := s.Serve(listener); err != nil {

@@ -19,8 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	GRPC_InspectConfig_FullMethodName = "/proto.GRPC/InspectConfig"
-	GRPC_InspectLog_FullMethodName    = "/proto.GRPC/InspectLog"
+	GRPC_InspectConfig_FullMethodName  = "/proto.GRPC/InspectConfig"
+	GRPC_InspectStatus_FullMethodName  = "/proto.GRPC/InspectStatus"
+	GRPC_InspectVersion_FullMethodName = "/proto.GRPC/InspectVersion"
+	GRPC_InspectLog_FullMethodName     = "/proto.GRPC/InspectLog"
 )
 
 // GRPCClient is the client API for GRPC service.
@@ -28,6 +30,8 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type GRPCClient interface {
 	InspectConfig(ctx context.Context, in *InspectConfigRequest, opts ...grpc.CallOption) (*StringResponse, error)
+	InspectStatus(ctx context.Context, in *InspectStatusRequest, opts ...grpc.CallOption) (*StringResponse, error)
+	InspectVersion(ctx context.Context, in *InspectVersionRequest, opts ...grpc.CallOption) (*StringResponse, error)
 	InspectLog(ctx context.Context, in *InspectLogRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StringResponse], error)
 }
 
@@ -43,6 +47,26 @@ func (c *gRPCClient) InspectConfig(ctx context.Context, in *InspectConfigRequest
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(StringResponse)
 	err := c.cc.Invoke(ctx, GRPC_InspectConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gRPCClient) InspectStatus(ctx context.Context, in *InspectStatusRequest, opts ...grpc.CallOption) (*StringResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StringResponse)
+	err := c.cc.Invoke(ctx, GRPC_InspectStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gRPCClient) InspectVersion(ctx context.Context, in *InspectVersionRequest, opts ...grpc.CallOption) (*StringResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StringResponse)
+	err := c.cc.Invoke(ctx, GRPC_InspectVersion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +97,8 @@ type GRPC_InspectLogClient = grpc.ServerStreamingClient[StringResponse]
 // for forward compatibility.
 type GRPCServer interface {
 	InspectConfig(context.Context, *InspectConfigRequest) (*StringResponse, error)
+	InspectStatus(context.Context, *InspectStatusRequest) (*StringResponse, error)
+	InspectVersion(context.Context, *InspectVersionRequest) (*StringResponse, error)
 	InspectLog(*InspectLogRequest, grpc.ServerStreamingServer[StringResponse]) error
 	mustEmbedUnimplementedGRPCServer()
 }
@@ -86,6 +112,12 @@ type UnimplementedGRPCServer struct{}
 
 func (UnimplementedGRPCServer) InspectConfig(context.Context, *InspectConfigRequest) (*StringResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method InspectConfig not implemented")
+}
+func (UnimplementedGRPCServer) InspectStatus(context.Context, *InspectStatusRequest) (*StringResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InspectStatus not implemented")
+}
+func (UnimplementedGRPCServer) InspectVersion(context.Context, *InspectVersionRequest) (*StringResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InspectVersion not implemented")
 }
 func (UnimplementedGRPCServer) InspectLog(*InspectLogRequest, grpc.ServerStreamingServer[StringResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method InspectLog not implemented")
@@ -129,6 +161,42 @@ func _GRPC_InspectConfig_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GRPC_InspectStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InspectStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GRPCServer).InspectStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GRPC_InspectStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GRPCServer).InspectStatus(ctx, req.(*InspectStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GRPC_InspectVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InspectVersionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GRPCServer).InspectVersion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GRPC_InspectVersion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GRPCServer).InspectVersion(ctx, req.(*InspectVersionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GRPC_InspectLog_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(InspectLogRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -150,6 +218,14 @@ var GRPC_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "InspectConfig",
 			Handler:    _GRPC_InspectConfig_Handler,
+		},
+		{
+			MethodName: "InspectStatus",
+			Handler:    _GRPC_InspectStatus_Handler,
+		},
+		{
+			MethodName: "InspectVersion",
+			Handler:    _GRPC_InspectVersion_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

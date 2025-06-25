@@ -111,6 +111,78 @@ func (x *InspectConfigRequest) GetFormat() ConfigFormat {
 	return ConfigFormat_YAML
 }
 
+type InspectStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InspectStatusRequest) Reset() {
+	*x = InspectStatusRequest{}
+	mi := &file_grpc_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InspectStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InspectStatusRequest) ProtoMessage() {}
+
+func (x *InspectStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InspectStatusRequest.ProtoReflect.Descriptor instead.
+func (*InspectStatusRequest) Descriptor() ([]byte, []int) {
+	return file_grpc_proto_rawDescGZIP(), []int{1}
+}
+
+type InspectVersionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InspectVersionRequest) Reset() {
+	*x = InspectVersionRequest{}
+	mi := &file_grpc_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InspectVersionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InspectVersionRequest) ProtoMessage() {}
+
+func (x *InspectVersionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_grpc_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InspectVersionRequest.ProtoReflect.Descriptor instead.
+func (*InspectVersionRequest) Descriptor() ([]byte, []int) {
+	return file_grpc_proto_rawDescGZIP(), []int{2}
+}
+
 type InspectLogRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Level         int32                  `protobuf:"zigzag32,1,opt,name=level,proto3" json:"level,omitempty"` // respect to definition in slog package
@@ -121,7 +193,7 @@ type InspectLogRequest struct {
 
 func (x *InspectLogRequest) Reset() {
 	*x = InspectLogRequest{}
-	mi := &file_grpc_proto_msgTypes[1]
+	mi := &file_grpc_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -133,7 +205,7 @@ func (x *InspectLogRequest) String() string {
 func (*InspectLogRequest) ProtoMessage() {}
 
 func (x *InspectLogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_grpc_proto_msgTypes[1]
+	mi := &file_grpc_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -146,7 +218,7 @@ func (x *InspectLogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InspectLogRequest.ProtoReflect.Descriptor instead.
 func (*InspectLogRequest) Descriptor() ([]byte, []int) {
-	return file_grpc_proto_rawDescGZIP(), []int{1}
+	return file_grpc_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *InspectLogRequest) GetLevel() int32 {
@@ -172,7 +244,7 @@ type StringResponse struct {
 
 func (x *StringResponse) Reset() {
 	*x = StringResponse{}
-	mi := &file_grpc_proto_msgTypes[2]
+	mi := &file_grpc_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -184,7 +256,7 @@ func (x *StringResponse) String() string {
 func (*StringResponse) ProtoMessage() {}
 
 func (x *StringResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_grpc_proto_msgTypes[2]
+	mi := &file_grpc_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -197,7 +269,7 @@ func (x *StringResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StringResponse.ProtoReflect.Descriptor instead.
 func (*StringResponse) Descriptor() ([]byte, []int) {
-	return file_grpc_proto_rawDescGZIP(), []int{2}
+	return file_grpc_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *StringResponse) GetS() string {
@@ -214,7 +286,9 @@ const file_grpc_proto_rawDesc = "" +
 	"\n" +
 	"grpc.proto\x12\x05proto\"C\n" +
 	"\x14InspectConfigRequest\x12+\n" +
-	"\x06format\x18\x01 \x01(\x0e2\x13.proto.ConfigFormatR\x06format\"?\n" +
+	"\x06format\x18\x01 \x01(\x0e2\x13.proto.ConfigFormatR\x06format\"\x16\n" +
+	"\x14InspectStatusRequest\"\x17\n" +
+	"\x15InspectVersionRequest\"?\n" +
 	"\x11InspectLogRequest\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x11R\x05level\x12\x14\n" +
 	"\x05plain\x18\x02 \x01(\bR\x05plain\"\x1e\n" +
@@ -222,9 +296,11 @@ const file_grpc_proto_rawDesc = "" +
 	"\x01s\x18\x01 \x01(\tR\x01s*\"\n" +
 	"\fConfigFormat\x12\b\n" +
 	"\x04YAML\x10\x00\x12\b\n" +
-	"\x04JSON\x10\x012\x90\x01\n" +
+	"\x04JSON\x10\x012\xa0\x02\n" +
 	"\x04GRPC\x12E\n" +
-	"\rInspectConfig\x12\x1b.proto.InspectConfigRequest\x1a\x15.proto.StringResponse\"\x00\x12A\n" +
+	"\rInspectConfig\x12\x1b.proto.InspectConfigRequest\x1a\x15.proto.StringResponse\"\x00\x12E\n" +
+	"\rInspectStatus\x12\x1b.proto.InspectStatusRequest\x1a\x15.proto.StringResponse\"\x00\x12G\n" +
+	"\x0eInspectVersion\x12\x1c.proto.InspectVersionRequest\x1a\x15.proto.StringResponse\"\x00\x12A\n" +
 	"\n" +
 	"InspectLog\x12\x18.proto.InspectLogRequest\x1a\x15.proto.StringResponse\"\x000\x01B\x11Z\x0ffippf/cli/protob\x06proto3"
 
@@ -241,21 +317,27 @@ func file_grpc_proto_rawDescGZIP() []byte {
 }
 
 var file_grpc_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_grpc_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_grpc_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_grpc_proto_goTypes = []any{
-	(ConfigFormat)(0),            // 0: proto.ConfigFormat
-	(*InspectConfigRequest)(nil), // 1: proto.InspectConfigRequest
-	(*InspectLogRequest)(nil),    // 2: proto.InspectLogRequest
-	(*StringResponse)(nil),       // 3: proto.StringResponse
+	(ConfigFormat)(0),             // 0: proto.ConfigFormat
+	(*InspectConfigRequest)(nil),  // 1: proto.InspectConfigRequest
+	(*InspectStatusRequest)(nil),  // 2: proto.InspectStatusRequest
+	(*InspectVersionRequest)(nil), // 3: proto.InspectVersionRequest
+	(*InspectLogRequest)(nil),     // 4: proto.InspectLogRequest
+	(*StringResponse)(nil),        // 5: proto.StringResponse
 }
 var file_grpc_proto_depIdxs = []int32{
 	0, // 0: proto.InspectConfigRequest.format:type_name -> proto.ConfigFormat
 	1, // 1: proto.GRPC.InspectConfig:input_type -> proto.InspectConfigRequest
-	2, // 2: proto.GRPC.InspectLog:input_type -> proto.InspectLogRequest
-	3, // 3: proto.GRPC.InspectConfig:output_type -> proto.StringResponse
-	3, // 4: proto.GRPC.InspectLog:output_type -> proto.StringResponse
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
+	2, // 2: proto.GRPC.InspectStatus:input_type -> proto.InspectStatusRequest
+	3, // 3: proto.GRPC.InspectVersion:input_type -> proto.InspectVersionRequest
+	4, // 4: proto.GRPC.InspectLog:input_type -> proto.InspectLogRequest
+	5, // 5: proto.GRPC.InspectConfig:output_type -> proto.StringResponse
+	5, // 6: proto.GRPC.InspectStatus:output_type -> proto.StringResponse
+	5, // 7: proto.GRPC.InspectVersion:output_type -> proto.StringResponse
+	5, // 8: proto.GRPC.InspectLog:output_type -> proto.StringResponse
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -272,7 +354,7 @@ func file_grpc_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_grpc_proto_rawDesc), len(file_grpc_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
