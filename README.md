@@ -1,6 +1,6 @@
 # FIPPF: a Fake-IP Proxy Frontend
 
-_Under development and come with no warranty, use at your own risk._
+_Comes with no warranty, use at your own risk._
 
 FIPPF consists of a fake-IP DNS server and a tun network interface.
 It resolves domain names to different fake IP addresses inside tun network's subnet,
@@ -20,15 +20,20 @@ It is designed to be a stupid simple program for Linux with a small codebase.
 
 ## Try it out
 
+For NixOS users, there is an accompanied [nix flake](https://github.com/Hyffer/fippf-nix) for easily integrating FIPPF into your system.
+
+And there is a [systemd unit configuration file](https://gist.github.com/MirageTurtle/a5520c7a315ff193761367f50534b98a) for reference.
+_(It is not maintained by author. Some of the content might be outdated, adjustments required.)_ 
+
 ### Build
 
 Build the program with go (I use go1.23.1).
 
 ### Configure and Run
 
-Example configuration file is provided in [config.yaml](./config.yaml).
+Example configurations are provided under directory [core](./core), refer to them for detail.
 
-To specify the configuration directory, use command line argument `fippf --config_dir /path/to/config`.
+Launch the daemon by `fippf serve --config_dir /path/to/config`.
 
 ### Verify
 
@@ -47,6 +52,12 @@ Then manually send request to that IP address:
 `curl --resolve example.com:80:198.18.0.2 http://example.com`
 
 The traffic should go through the proxy now.
+
+### Debug / Inspection
+
+FIPPF is shipped with a cli tool for inspecting what is going on inside,
+e.g. `fippf status` to check for daemon running state.
+Type `fippf -h` to see all available commands.
 
 ### Notice
 
