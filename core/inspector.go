@@ -127,12 +127,14 @@ func (server *gRPCServer) InspectVersion(_ context.Context, _ *proto.InspectVers
 
 type RemoteWriter struct {
 	stream grpc.ServerStreamingServer[proto.StringResponse]
+	buf    chan string // asynchronously and sequentially write to stream
 }
 
 func (w *RemoteWriter) Write(p []byte) (n int, err error) {
-	err = w.stream.Send(&proto.StringResponse{S: string(p)})
-	if err != nil {
-		return 0, err
+	select {
+	case w.buf <- string(p):
+	default:
+		// drop message when the buffer is full
 	}
 	return len(p), nil
 }
@@ -146,8 +148,25 @@ func (server *gRPCServer) InspectLog(req *proto.InspectLogRequest, stream grpc.S
 	level := slog.Level(req.GetLevel())
 	noColor := req.GetPlain()
 
+	writer := &RemoteWriter{
+		stream: stream,
+		buf:    make(chan string, 20),
+	}
+	go func(w *RemoteWriter) {
+		for {
+			select {
+			case <-w.stream.Context().Done():
+				return
+			case msg := <-w.buf:
+				if err := w.stream.Send(&proto.StringResponse{S: msg}); err != nil {
+					return
+				}
+			}
+		}
+	}(writer)
+
 	zRemoteLogger := zerolog.New(zerolog.ConsoleWriter{
-		Out:        &RemoteWriter{stream: stream},
+		Out:        writer,
 		NoColor:    noColor,
 		TimeFormat: time.TimeOnly,
 	})
