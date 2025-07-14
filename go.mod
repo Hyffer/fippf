@@ -7,6 +7,7 @@ toolchain go1.23.1
 require (
 	github.com/0990/socks5 v1.0.7
 	github.com/deckarep/golang-set v1.8.0
+	github.com/earthboundkid/versioninfo/v2 v2.24.1
 	github.com/jsimonetti/rtnetlink v1.4.2
 	github.com/mdlayher/netlink v1.7.2
 	github.com/metacubex/geo v0.0.0-20240718103914-a4db326ccfd7
@@ -25,7 +26,6 @@ require (
 )
 
 require (
-	github.com/earthboundkid/versioninfo/v2 v2.24.1 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect

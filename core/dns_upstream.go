@@ -77,8 +77,8 @@ func SetNetworkChangeHandler(callback func()) {
 						src := rmsg.Attributes.Src
 						gw := rmsg.Attributes.Gateway
 						slog.Debug("[RTNETLINK] Route "+action+":", "dst", dst, "src", src, "gw", gw)
-						if action == "add" && dst == nil {
-							// default route added
+						if dst == nil {
+							// default route changed
 							select {
 							case update <- struct{}{}:
 							default:
@@ -94,11 +94,10 @@ func SetNetworkChangeHandler(callback func()) {
 						iface := lmsg.Attributes.Name
 						state := lmsg.Attributes.OperationalState
 						slog.Debug("[RTNETLINK] Interface state changed:", "iface", iface, "state", state)
-						if lmsg.Attributes.OperationalState == rtnetlink.OperStateUp {
-							select {
-							case update <- struct{}{}:
-							default:
-							}
+						// link state changed
+						select {
+						case update <- struct{}{}:
+						default:
 						}
 					} // switch msg.Header.Type
 				} // for _, msg := range raw
