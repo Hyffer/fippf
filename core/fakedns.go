@@ -54,9 +54,9 @@ func NewIPPool(cidr net.IPNet, reserveIp net.IP, cidr6 net.IPNet, reserveIp6 net
 
 	// exclude special ip addresses
 	reserve := mapset.NewSet()
-	reserve.Add(0)
+	reserve.Add(uint32(0))
 	reserve.Add(size - 1)
-	reserve.Add(ip4ToIdx(reserveIp, cidr))
+	reserve.Add(ip4ToIdx(reserveIp.To4(), cidr))
 	if cidr6.Contains(reserveIp6) {
 		reserve.Add(ip6ToIdx(reserveIp6, cidr6))
 	}
