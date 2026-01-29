@@ -176,7 +176,7 @@ func Launch(configDir string, sockFile string) {
 
 	slog.Info("FIPPF started")
 
-	termChan := make(chan os.Signal)
+	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 
 	<-termChan
