@@ -1,5 +1,7 @@
 .idea
 .go
+.venv
+__pycache__
 core/config.*
 core/dlc.dat
 curl

@@ -2,11 +2,13 @@
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.13.6/.schema/devbox.schema.json",
   "packages": [
     "jetbrains.goland@2024.3.3",
-    "go@1.23.5"
+    "go@1.23.5",
+    "python@3.12.12",
+    "curl@8.16.0"
   ],
   "env": {
-    "GOPATH": "$PWD/.go",
-    "PATH": "$PATH:$PWD/.go/bin",
+    "GOPATH":               "$PWD/.go",
+    "PATH":                 "$PATH:$PWD/.go/bin",
     "NIX_HARDENING_ENABLE": ""
   },
   "shell": {
@@ -17,7 +19,11 @@
     ],
     "scripts": {
       "test": [
-        "echo \"Error: no test specified\" && exit 1"
+        "go test ./... && go build",
+        "echo === Socks5 mock server self-test === && \\",
+        "   python test/mock_socks5_server.py --self-test",
+        "echo === E2E test === && \\",
+        "   unshare --map-root-user --net bash test/e2e.sh"
       ]
     }
   }
